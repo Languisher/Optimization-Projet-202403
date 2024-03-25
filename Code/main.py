@@ -1,15 +1,14 @@
-from CyclistState import CyclistState
-
+import openai
 
 if __name__ == "__main__":
-    cyclist = CyclistState(position=0, velocity=5, awc=20000)  # Initial state
-    dt = 1  # Time step in seconds
-    slope = 0.05  # Slope of the course (5% uphill)
-    power_output = 350  # Power output in Watts
+    # Set your OpenAI API key here
+    openai.api_key = "sk-GES9I1Q6uj7hXCGy21F1Dd68929c48159a8165780eC1274e"
 
-    # Simulate changes for a single timestep
-    cyclist.change_position(dt)
-    cyclist.change_velocity(power_output, slope, dt)
-    cyclist.change_awc(power_output, dt)
-
-    print(cyclist)
+    try:
+        # Attempt to list available models as a way to validate the API key
+        response = openai.Model.list()
+        # If the above line does not raise an exception, the API key is valid
+        print("API key is valid.")
+    except Exception as e:
+        # Catch other possible exceptions and print them
+        print(f"An error occurred: {e}")
