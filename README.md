@@ -1,4 +1,4 @@
-# Optimization-Projet-202403
+# Optimization-Project-202403
 
 2024 年 3 月《最优化》课程的代码和资料库。
 
