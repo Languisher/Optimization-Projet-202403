@@ -13,7 +13,7 @@ class CyclistState:
         self.A = 1  # Frontal area, in m^2
         self.rho = 1.225  # kg/m^3, air density at sea level
         self.CR = 0.005  # Coefficient of rolling resistance
-        self.CP = 300  # Watts, Critical Power
+        self.CP = 50  # Watts, Critical Power
 
         self.calculate_adjusted_power = lambda power_input: 0.0772 * power_input \
                                                             + 222.49
@@ -73,8 +73,22 @@ class CyclistState:
         """
         # Example: H = L(x, u, t) + lambda^T * f(x, u, t)
         # You will need to define L and f based on your specific problem
-        H = 0  # Replace with your actual Hamiltonian calculation
+
+        # Calculate total resistive forces as done in change_velocity
+        drag_force = 0.5 * self.Cd * self.A * self.rho * self.velocity ** 2
+        rolling_resistance_force = self.CR * self.mass * self.g * np.cos(np.arctan(self.slope))
+        gravity_force = self.mass * self.g * np.sin(np.arctan(self.slope))
+        total_resistive_force = drag_force + rolling_resistance_force + gravity_force
+        
+        # Assuming adjustment = 1 for power_output > CP, else 0
+        adjustment = 1 if power_output > self.CP else 0
+        
+        # Hamiltonian calculation
+        H = self.lambda_position * (power_output - self.CP) ** 2 if power_output > self.CP else 0
+        H += self.lambda_velocity * ((power_output - total_resistive_force * self.velocity) / self.mass)
+        H += self.lambda_awc * adjustment * (power_output - self.CP)
         return H
+
 
     def update_co_states(self, dt):
         """
@@ -92,8 +106,10 @@ class CyclistState:
         return 0  # Replace with the actual calculation
 
     def partial_derivative_hamiltonian_velocity(self):
-        # Placeholder for partial derivative of Hamiltonian with respect to velocity
-        return 0  # Replace with the actual calculation
+        # Simplified derivative with respect to velocity
+        drag_force_derivative = self.Cd * self.A * self.rho * self.velocity
+        return -self.lambda_velocity * drag_force_derivative / self.mass
+
 
     def partial_derivative_hamiltonian_awc(self):
         # Placeholder for partial derivative of Hamiltonian with respect to AWC
@@ -110,30 +126,50 @@ class CyclistState:
         return optimal_power_output
 
 
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Assuming CyclistState class definition remains the same
+
 if __name__ == '__main__':
     cyclist = CyclistState(position=0, velocity=5, awc=20000)  # Initial state
     dt = 1  # Time step in seconds
     slope = 0.05  # Slope of the course (5% uphill)
-    power_output = 350  # Power output in Watts
+    simulation_time = 60  # Simulate for 60 seconds
 
-    # Simulate changes for a single timestep
-    cyclist.change_position(dt)
-    cyclist.change_velocity(power_output, slope, dt)
-    cyclist.change_awc(power_output, dt)
+    positions = []
+    velocities = []
+    awcs = []
+    times = np.arange(0, simulation_time + dt, dt)
 
-    print(cyclist)
+    for t in times:
+        # Store current state
+        positions.append(cyclist.position)
+        velocities.append(cyclist.velocity)
+        awcs.append(cyclist.awc)
 
-    for _ in range(1):  # Replace with a proper loop for your simulation duration
-        # Find the optimal power output
-        optimal_power_output = cyclist.find_optimal_control()
-        
-        # Update the cyclist's state with the optimal power output
-        cyclist.change_velocity(optimal_power_output, slope, dt)
-        cyclist.change_awc(optimal_power_output, dt)
+        # Simulate changes for the current timestep
+        power_output = cyclist.find_optimal_control()  # Find the optimal power output
+        cyclist.change_velocity(power_output, slope, dt)
+        cyclist.change_awc(power_output, dt)
         cyclist.change_position(dt)
-        
+
         # Update the co-state variables
         cyclist.update_co_states(dt)
-        
-        # Print the current state
-        print(cyclist)
+
+    # Plotting
+    fig, axs = plt.subplots(1, 2, figsize=(16, 8))
+    
+    axs[0].plot(times, positions)
+    axs[0].set_title('Position over Time')
+    axs[0].set_xlabel('Time (s)')
+    axs[0].set_ylabel('Position (m)')
+
+    axs[1].plot(times, velocities)
+    axs[1].set_title('Velocity over Time')
+    axs[1].set_xlabel('Time (s)')
+    axs[1].set_ylabel('Velocity (m/s)')
+
+
+    plt.tight_layout()
+    plt.show()

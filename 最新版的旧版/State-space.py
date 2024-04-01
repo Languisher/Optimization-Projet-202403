@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import odeint
 
+### ********************* Constants ***********************
 # Constants and Parameters (Need to be calibrated based on experimental data)
 CP = 250  # Critical Power in Watts
 AWC = 20000  # Anaerobic Work Capacity in Joules
@@ -12,6 +13,7 @@ C_d = 0.63  # Aerodynamic drag coefficient
 A = 0.509  # Frontal area in square meters
 rho = 1.226  # Density of air in kg/m^3
 C_R = 0.005  # Coefficient of rolling resistance
+### ********************* Constants ***********************
 
 # Functions to compute the derivatives of the state variables
 def f1(v):
@@ -83,7 +85,7 @@ def state_space_model(y, t, theta_func, lambda_):
 
 # Placeholder for road slope as a function of distance (theta(s))
 def road_slope(s):
-    return 0  # Flat road for this example
+    return -12  # Flat road for this example
 
 # Initial conditions
 s0 = 0  # Initial distance
