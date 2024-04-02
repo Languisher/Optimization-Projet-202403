@@ -14,6 +14,7 @@ class CyclistState:
         self.rho = 1.225  # kg/m^3, air density at sea level
         self.CR = 0.005  # Coefficient of rolling resistance
         self.CP = 50  # Watts, Critical Power
+        self.slope = -90
 
         self.calculate_adjusted_power = lambda power_input: 0.0772 * power_input \
                                                             + 222.49
@@ -26,10 +27,12 @@ class CyclistState:
     def change_position(self, dt=1):
         self.position += self.velocity * dt
 
-    def change_velocity(self, power_output, slope=0.05, dt=1):
+    def change_velocity(self, power_output, slope=0, dt=1):
         if (self.velocity == 0):
             return
 
+        if (slope):
+            self.slope = slope
         # Calculate total resistive forces
         drag_force = 0.5 * self.Cd * self.A * self.rho * self.velocity ** 2
         rolling_resistance_force = self.CR * self.mass * self.g * np.cos(slope)
@@ -68,35 +71,41 @@ class CyclistState:
 
     def calculate_hamiltonian(self, power_output):
         """
-        Placeholder for the Hamiltonian calculation. This function should return the value of the Hamiltonian.
+        Calculate the value of the Hamiltonian.
         It should incorporate the dynamics of the system, the cost function, and the co-state variables.
         """
-        # Example: H = L(x, u, t) + lambda^T * f(x, u, t)
-        # You will need to define L and f based on your specific problem
-
         # Calculate total resistive forces as done in change_velocity
         drag_force = 0.5 * self.Cd * self.A * self.rho * self.velocity ** 2
-        rolling_resistance_force = self.CR * self.mass * self.g * np.cos(np.arctan(self.slope))
-        gravity_force = self.mass * self.g * np.sin(np.arctan(self.slope))
+        rolling_resistance_force = self.CR * self.mass * self.g * np.cos(self.slope)
+        gravity_force = self.mass * self.g * np.sin(self.slope)
         total_resistive_force = drag_force + rolling_resistance_force + gravity_force
-        
+
         # Assuming adjustment = 1 for power_output > CP, else 0
         adjustment = 1 if power_output > self.CP else 0
         
-        # Hamiltonian calculation
-        H = self.lambda_position * (power_output - self.CP) ** 2 if power_output > self.CP else 0
-        H += self.lambda_velocity * ((power_output - total_resistive_force * self.velocity) / self.mass)
-        H += self.lambda_awc * adjustment * (power_output - self.CP)
+        # Update the dynamics (f) based on the state and control inputs
+        # Here, the dynamics are the changes in position and velocity
+        f_position = self.velocity
+        f_velocity = (power_output - total_resistive_force) / self.mass
+        
+        # Define the Lagrangian L, which in this case can be the negative of power_output
+        L = -power_output
+
+        # Calculate the Hamiltonian
+        H = self.lambda_position * f_position + self.lambda_velocity * f_velocity - L
+        
         return H
 
 
     def update_co_states(self, dt):
         """
-        Placeholder for updating the co-state variables. This will require solving the system of
-        ODEs that describe the evolution of the co-state variables over time.
+        Update the co-state variables using the Hamiltonian.
         """
         # Example: lambda_dot = -dH/dx
-        # The specific implementation will depend on the partial derivatives of your Hamiltonian
+        # Here we need to compute the derivatives of the Hamiltonian with respect to the state variables
+
+        # For illustrative purposes, we'll use very simple placeholders
+        # The partial derivatives of the Hamiltonian with respect to position and velocity would depend on the system
         self.lambda_position -= dt * self.partial_derivative_hamiltonian_position()
         self.lambda_velocity -= dt * self.partial_derivative_hamiltonian_velocity()
         self.lambda_awc -= dt * self.partial_derivative_hamiltonian_awc()
@@ -117,13 +126,37 @@ class CyclistState:
 
     def find_optimal_control(self):
         """
-        Placeholder for finding the optimal control that minimizes the Hamiltonian.
-        This may require solving an optimization problem at each time step.
+        Find the optimal control that minimizes the Hamiltonian.
+        This will typically involve setting the derivative of the Hamiltonian with respect to the control to zero.
         """
-        # This is a complex problem that generally requires numerical methods to solve.
-        # Here we simply return a placeholder value.
-        optimal_power_output = self.CP  # Replace with logic to find the optimal control
-        return optimal_power_output
+        # Placeholder for the optimal control strategy
+        # This is typically found by setting the derivative of H with respect to the control (u) to zero.
+        # However, since this can be complex, we might need to use a numerical solver.
+        # For now, we will use a simple gradient descent or another optimization algorithm to find this.
+
+        # Starting with the current power output as the initial guess
+        current_power_output = self.CP
+
+        # Define a small perturbation
+        epsilon = 1e-4
+        delta = 0.1
+
+        # Compute the Hamiltonian for the current power output
+        H_current = self.calculate_hamiltonian(current_power_output)
+
+        # Compute the Hamiltonian for the power output plus a small perturbation
+        H_perturbed = self.calculate_hamiltonian(current_power_output + epsilon)
+
+        # Compute the gradient of the Hamiltonian with respect to the power output
+        dH_dpower = (H_perturbed - H_current) / epsilon
+
+        # Update the power output in the direction that decreases the Hamiltonian
+        new_power_output = current_power_output - delta * dH_dpower
+
+        # Ensure the new power output is within the allowed limits
+        new_power_output = np.clip(new_power_output, 0, self.calculate_adjusted_power(new_power_output))
+
+        return new_power_output
 
 
 import numpy as np
@@ -134,7 +167,6 @@ import matplotlib.pyplot as plt
 if __name__ == '__main__':
     cyclist = CyclistState(position=0, velocity=5, awc=20000)  # Initial state
     dt = 1  # Time step in seconds
-    slope = 0.05  # Slope of the course (5% uphill)
     simulation_time = 60  # Simulate for 60 seconds
 
     positions = []
@@ -150,7 +182,7 @@ if __name__ == '__main__':
 
         # Simulate changes for the current timestep
         power_output = cyclist.find_optimal_control()  # Find the optimal power output
-        cyclist.change_velocity(power_output, slope, dt)
+        cyclist.change_velocity(power_output)
         cyclist.change_awc(power_output, dt)
         cyclist.change_position(dt)
 
