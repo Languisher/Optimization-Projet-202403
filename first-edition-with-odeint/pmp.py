@@ -19,12 +19,20 @@ def discretize_problem(vehicle, initial_state, time_horizon, dt=0.1):
     
     return sol.t, sol.y.T
 
+# Within discretize_problem in pmp.py
+
+def vehicle_dynamics(t, x):
+    if x[0] >= vehicle.route.total_distance:  # If the vehicle has reached the end of the route
+        return [0, 0, 0]  # Stop updating the state
+    u = optimal_control(x)
+    return vehicle.state_dynamics(t, x, u)
 
 
-# Placeholder for optimal control strategy (needs definition)
 def optimal_control(state):
-    # For demonstration, let's apply a simple constant power strategy
-    return 10  # Constant power output (Watts)
+    _, v, W = state  # Current state: velocity and energy
+    
+    return min(200, W * 0.01)  # Example dynamic control based on energy
+
 
 def hamiltonian(state, co_state, u, theta):
     """
