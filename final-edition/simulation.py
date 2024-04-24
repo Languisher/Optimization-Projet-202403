@@ -5,7 +5,7 @@ class Simulation:
     def __init__(self, vehicle, route):
         self.vehicle = vehicle
         self.route = route
-        self.distance_step = 10  # You might want this to be customizable
+        self.distance_step = 0.01
 
         # Physical constants
         self.g = 9.81  # Gravity acceleration in m/s^2
@@ -27,7 +27,8 @@ class Simulation:
         time = self.time_list[-1]
 
         # Convert angle to radians for computation
-        rad_angle = np.radians(incline_angle)
+        rad_angle = incline_angle
+
         
         # Calculate forces
         gravity_force = self.vehicle.mass * self.g * np.sin(rad_angle)
@@ -36,15 +37,15 @@ class Simulation:
 
         # Calculate acceleration
         total_force = output_power / current_velocity - gravity_force - friction_force - drag_force
-        acceleration = total_force / self.vehicle.mass
+        acceleration = total_force / self.vehicle.mass * 1000
 
         # Velocity update
         delta_v = acceleration * (self.distance_step / current_velocity)
         new_velocity = max(min(current_velocity + delta_v, self.vehicle.velocity_max), 0)
 
         # Energy update
-        power_consumed = 1/(3600 * self.eta) * (mu * self.vehicle.mass * self.g + 1/2 * self.rho * self.C_d * self.A * self.vehicle.velocity ** 2) * self.vehicle.velocity
-        power_regenerated = 0.740 * self.vehicle.velocity + 1.8
+        power_consumed = 1/(3.6 * self.eta) * (mu * self.vehicle.mass * self.g + 1/2 * self.rho * self.C_d * self.A * self.vehicle.velocity ** 2) * self.vehicle.velocity
+        power_regenerated = (0.740 * self.vehicle.velocity + 1.8) * 1000
         
         delta_energy_consumption = power_consumed * (self.distance_step / current_velocity)
         delta_energy_regeneration = power_regenerated * (self.distance_step / current_velocity)
@@ -71,7 +72,7 @@ class Simulation:
 
     def power_strategy(self, vehicle):
         # raise NotImplementedError("Power strategy is not implemented.")
-        return 10000
+        return 150000
 
     def simulate(self):
         for distance, incline_angle, mu in zip(self.route.distance_list, self.route.inclination_angle_list, self.route.mu_list):
@@ -105,7 +106,7 @@ class Simulation:
         plt.subplot(4, 1, 3)
         plt.plot(self.distance_list, self.velocity_list, label='Velocity (m/s)')
         plt.xlabel('Distance (m)')
-        plt.ylabel('Velocity (m/s)')
+        plt.ylabel('Velocity (km/h)')
         plt.legend()
 
         plt.subplot(4, 1, 4)

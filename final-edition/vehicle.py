@@ -13,7 +13,7 @@ class Vehicle:
             output_power (float): Current output power of the vehicle in watts. Default is 0.
             covered_distance (float): Total distance covered by the vehicle in meters. Default is 0.
         """
-        self.mass = mass
+        self.mass = mass # kg
         self.frontal_area = frontal_area
         self.velocity = velocity_init
         self.energy_left = energy_left

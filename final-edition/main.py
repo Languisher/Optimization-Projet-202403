@@ -24,3 +24,5 @@ sim.simulate()
 
 # Plot the results
 sim.plot_results()
+
+print()
