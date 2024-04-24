@@ -1,66 +1,100 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 class Simulation:
-    def __init__(self, vehicle, route):
+    def __init__(self, vehicle, route, distance_step=1, drag_coefficient=0.6, efficiency=0.86, gravity=9.81, min_velocity=2):
+        """
+        Initializes the Simulation with a given vehicle and route.
+
+        Parameters:
+        vehicle (Vehicle): The vehicle object containing vehicle-specific properties.
+        route (Route): The route object containing information about the journey.
+
+        Attributes:
+        g (float): Acceleration due to gravity in m/s^2.
+        C_d (float): Drag coefficient, which could be moved to vehicle properties if it varies per vehicle.
+        A (float): Frontal area of the vehicle in m^2, sourced from the vehicle properties.
+        eta (float): Efficiency coefficient, assuming constant efficiency across the simulation.
+        time (int): Simulation time in seconds, initialized to 0.
+        time_list (list of int): List to record time at each simulation step, starting at 0.
+        distance_step (int): Distance increment for each simulation step in meters.
+        distance_list (list of int): List to record the cumulative distance traveled.
+        velocity_list (list of float): List to record the vehicle's velocity at each step.
+        energy_list (list of float): List to record the vehicle's remaining energy.
+        output_power_list (list of float): List to record the output power at each step.
+        """
+
+        if vehicle is None or route is None:
+            raise ValueError("Vehicle and route cannot be None.")
+        if distance_step <= 0:
+            raise ValueError("Distance step must be positive.")
+        if not (0 <= drag_coefficient <= 1):
+            raise ValueError("Drag coefficient must be between 0 and 1.")
+        if not (0 <= efficiency <= 1):
+            raise ValueError("Efficiency must be between 0 and 1.")
+
         self.vehicle = vehicle
         self.route = route
-        self.distance_step = 0.01
 
         # Physical constants
-        self.g = 9.81  # Gravity acceleration in m/s^2
-        self.C_d = 0.3  # Drag coefficient, consider moving to vehicle properties if it varies per vehicle
-        self.A = self.vehicle.frontal_area  # Frontal area from vehicle
-        self.rho = 1.225  # Air density in kg/m^3
-        self.eta = 0.86   # Efficiency coef
+        self.g = gravity
+        self.C_d = drag_coefficient
+        self.A = self.vehicle.frontal_area
+        self.eta = efficiency
+        self.min_velocity = min_velocity
 
-        self.time_list = [0]  
-        self.velocity_list = [vehicle.velocity] 
-        self.energy_list = [vehicle.energy_left]  
-        self.distance_list = [0]  
-        self.output_power_list = [0]
+        # We would record the current status and store them in a list container
+        self.time = 0
+        self.time_list = []
+
+        self.distance_step = distance_step
+        self.distance_list = []
+
+        self.velocity_list = []
+        self.energy_list = []
+        self.output_power_list = []
+
+        self.initialize_state_lists()
+
+    def initialize_state_lists(self):
+        self.time_list = [self.time]
+        self.distance_list = [self.vehicle.covered_distance]
+        self.velocity_list = [self.vehicle.velocity]
+        self.energy_list = [self.vehicle.energy_left]
+        self.output_power_list = [self.vehicle.output_power]
 
     def update_vehicle_state(self, incline_angle, output_power, mu):
-        current_velocity = self.vehicle.velocity
-        current_energy = self.vehicle.energy_left
-        current_distance = self.vehicle.covered_distance
-        time = self.time_list[-1]
+        rad_angle = np.radians(incline_angle)  # Convert angle to radians
 
-        # Convert angle to radians for computation
-        rad_angle = incline_angle
-
-        
         # Calculate forces
         gravity_force = self.vehicle.mass * self.g * np.sin(rad_angle)
         friction_force = self.vehicle.mass * self.g * np.cos(rad_angle) * mu
-        drag_force = 0.5 * self.C_d * self.A * self.rho * current_velocity**2
+        drag_force = self.C_d * self.A * self.vehicle.velocity ** 2 / 2  # Adjusted divisor based on typical air density and speed squared
 
         # Calculate acceleration
-        total_force = output_power / current_velocity - gravity_force - friction_force - drag_force
-        acceleration = total_force / self.vehicle.mass * 1000
+        total_force = output_power / self.vehicle.velocity - gravity_force - friction_force - drag_force
+        acceleration = total_force / self.vehicle.mass
 
-        # Velocity update
-        delta_v = acceleration * (self.distance_step / current_velocity)
-        new_velocity = max(min(current_velocity + delta_v, self.vehicle.velocity_max), 0)
+        # Update velocity
+        delta_v = acceleration * (self.distance_step / max(self.vehicle.velocity, 0.1))  # prevent division by zero
+        new_velocity = max(min(self.vehicle.velocity + delta_v, self.vehicle.velocity_max),
+                           self.min_velocity)  # use a min_velocity attribute
 
-        # Energy update
-        power_consumed = 1/(3.6 * self.eta) * (mu * self.vehicle.mass * self.g + 1/2 * self.rho * self.C_d * self.A * self.vehicle.velocity ** 2) * self.vehicle.velocity
-        power_regenerated = (0.740 * self.vehicle.velocity + 1.8) * 1000
-        
-        delta_energy_consumption = power_consumed * (self.distance_step / current_velocity)
-        delta_energy_regeneration = power_regenerated * (self.distance_step / current_velocity)
+        # Energy updates (assuming all powers are in Watts and all times are in seconds)
+        power_consumed = output_power * (self.distance_step / max(self.vehicle.velocity, 0.1))
+        power_regenerated = -0.740 * self.vehicle.velocity * (
+                    self.distance_step / max(self.vehicle.velocity, 0.1))  # assuming negative for regeneration
 
-        new_energy = max(current_energy - delta_energy_consumption + delta_energy_regeneration, 0)
+        new_energy = max(self.vehicle.energy_left - power_consumed + power_regenerated, 0)
 
-        # Distance update
-        new_distance = current_distance + self.distance_step
+        # Update distance and time
+        new_distance = self.vehicle.covered_distance + self.distance_step
+        delta_t = self.distance_step / max(self.vehicle.velocity, 0.1) * 3600  # to convert hours to seconds
+        new_time = self.time_list[-1] + delta_t
 
-        # Time update
-        delta_t = self.distance_step / current_velocity
-        new_time = time + delta_t
-
-        # Update vehicle and lists
-        self.vehicle.update_velocity(new_velocity)  # Assuming a method exists
+        # Update vehicle state and lists
+        self.vehicle.update_velocity(new_velocity)
         self.vehicle.energy_left = new_energy
         self.vehicle.covered_distance = new_distance
 
@@ -68,23 +102,39 @@ class Simulation:
         self.energy_list.append(new_energy)
         self.distance_list.append(new_distance)
         self.time_list.append(new_time)
-        self.output_power_list.append(output_power)
+        self.output_power_list.append(output_power / 1000)  # Convert watts to kilowatts for recording
 
-    def power_strategy(self, vehicle):
-        # raise NotImplementedError("Power strategy is not implemented.")
-        return 150000
+    def power_strategy(self, vehicle, incline_angle, remaining_energy):
+        # Define the base power level and strategy multipliers
+        base_power = 5
+        strategies = [1, 2, 3, 10]  # Multipliers for the base power
+
+        # Select strategy based on road incline and remaining energy
+        if remaining_energy > 300:
+            selected_strategy = strategies[3]  # Least power if there's plenty of energy and road is flat
+        elif remaining_energy > 200:
+            selected_strategy = strategies[2]  # Moderate power for slight incline and sufficient energy
+        elif remaining_energy > 100:
+            selected_strategy = strategies[1]  # More power for steeper inclines or less energy
+        else:
+            selected_strategy = strategies[0]  # Maximum power for steep inclines or very low energy
+
+        return base_power * selected_strategy
+
+
 
     def simulate(self):
+        self.initialize_state_lists()
         for distance, incline_angle, mu in zip(self.route.distance_list, self.route.inclination_angle_list, self.route.mu_list):
             num_steps = int(np.ceil(distance / self.distance_step))
             for _ in range(num_steps):
                 print(self.vehicle)
-                self.vehicle.output_power = self.power_strategy(self.vehicle)
+                self.vehicle.output_power = self.power_strategy(self.vehicle, incline_angle, self.vehicle.energy_left)
                 self.update_vehicle_state(incline_angle, self.vehicle.output_power, mu)
-                
-                if self.vehicle.velocity < 2:
-                    self.vehicle.velocity = 2
-                    
+
+                if self.vehicle.velocity < self.min_velocity:
+                    self.vehicle.velocity = self.min_velocity
+
                 if self.vehicle.energy_left < 2:
                     break
 
@@ -98,19 +148,19 @@ class Simulation:
         plt.legend()
 
         plt.subplot(4, 1, 2)
-        plt.plot(self.distance_list, self.output_power_list, label='Power Output (W)')
+        plt.plot(self.distance_list, self.output_power_list, label='Power Output (kW)')
         plt.xlabel('Distance (m)')
         plt.ylabel('Power Output (W)')
         plt.legend()
 
         plt.subplot(4, 1, 3)
-        plt.plot(self.distance_list, self.velocity_list, label='Velocity (m/s)')
+        plt.plot(self.distance_list, self.velocity_list, label='Velocity (km/h)')
         plt.xlabel('Distance (m)')
-        plt.ylabel('Velocity (km/h)')
+        plt.ylabel('Velocity (m/s)')
         plt.legend()
 
         plt.subplot(4, 1, 4)
-        plt.plot(self.distance_list, self.energy_list, label='Energy (J)')
+        plt.plot(self.distance_list, self.energy_list, label='Energy (kJ)')
         plt.xlabel('Distance (m)')
         plt.ylabel('Energy (J)')
         plt.legend()
