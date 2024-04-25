@@ -43,6 +43,8 @@ class Simulation:
         self.A = self.vehicle.frontal_area
         self.eta = efficiency
         self.min_velocity = min_velocity
+        
+        self.policy = None
 
         # We would record the current status and store them in a list container
         self.time = 0
@@ -56,6 +58,8 @@ class Simulation:
         self.output_power_list = []
 
         self.initialize_state_lists()
+
+        
 
     def initialize_state_lists(self):
         self.time_list = [self.time]
@@ -82,8 +86,8 @@ class Simulation:
                            self.min_velocity)  # use a min_velocity attribute
 
         # Energy updates (assuming all powers are in Watts and all times are in seconds)
-        power_consumed = output_power * (self.distance_step / max(self.vehicle.velocity, 0.1))
-        # power_consumed = self.vehicle.output_power
+        # power_consumed = output_power * (self.distance_step / max(self.vehicle.velocity, 0.1))
+        power_consumed = self.vehicle.output_power
 
         power_regenerated = -0.740 * self.vehicle.velocity * (
                     self.distance_step / max(self.vehicle.velocity, 0.1))  # assuming negative for regeneration
@@ -106,35 +110,84 @@ class Simulation:
         self.time_list.append(new_time)
         self.output_power_list.append(output_power / 1000)  # Convert watts to kilowatts for recording
 
-    def calculate_possible_output_power_value(self, incline_angle, mu):
+        return new_velocity, new_energy, delta_t
+
+    def possible_output_power_values(self, incline_angle, mu):
         rad_angle = np.radians(incline_angle)
         u1 = 0
         u2 = 9000
         u3 = 150000
-        u4 = self.vehicle.mass * self.g * self.vehicle.velocity*(np.sin(rad_angle) + mu * np.cos(rad_angle)) - self.C_d * self.A * self.vehicle.velocity ** 2 / 21.15
+        u4 = self.vehicle.mass * self.g * self.vehicle.velocity * (np.sin(rad_angle) + mu * np.cos(rad_angle)) - self.C_d * self.A * self.vehicle.velocity ** 2 / 21.15
         return [u1, u2, u3, u4]
 
-    def power_strategy(self, output_values):
-        output_u = np.random.choice(output_values)
+
+    def dynamic_programming_approach(self):
+        N = len(self.route.distance_list)
+        print(f"Length of self.distance_list: {len(self.distance_list)}")
+        print(f"Value of N (number of route segments): {N}")
+        J = np.full((N+1, 4), np.inf)  # Set initial costs to infinity
+
+
+        # Backward pass to calculate the costs
+        for i in range(N-1, -1, -1):
+            # Print the current index and the lengths of the lists
+            print(f"Current segment index: {i}")
+            print(f"Length of self.distance_list: {len(self.distance_list)}")
+            print(f"Length of self.velocity_list: {len(self.velocity_list)}")
+            for j in range(4):
+                possible_powers = self.possible_output_power_values(self.route.inclination_angle_list[i], self.route.mu_list[i])
+                costs = []
+                for power in possible_powers:
+                    new_velocity, new_energy, _ = self.calculate_next_state(self.route.inclination_angle_list[i], power, self.route.mu_list[i])
+
+                    if i == N-1:
+                        # If it's the last segment, we use the last available distance value
+                        delta_t = self.distance_list[-1] / max(new_velocity, self.min_velocity) * 3600
+                    else:
+                        # For all other segments, we use i+1
+                        delta_t = self.distance_list[i+1] / max(new_velocity, self.min_velocity) * 3600
+
+                    cost = delta_t if new_velocity > 0 else np.inf
+                    costs.append(cost + J[i+1, j])
+                J[i, j] = min(costs)
+
+        # Forward pass to find the optimal policy
+        policy = np.zeros(N)
+        for i in range(N):
+            min_cost, min_cost_index = min((cost, idx) for idx, cost in enumerate(J[i]))
+            policy[i] = possible_powers[min_cost_index]
+            self.update_vehicle_state(self.route.inclination_angle_list[i], policy[i], self.route.mu_list[i])
+
+        # Store the policy
+        self.policy = policy
+
+        # Return policy as it might be needed elsewhere
+        return policy
+
         
-        return output_u
+    def calculate_next_state(self, incline_angle, output_power, mu):
+        rad_angle = np.radians(incline_angle)  # Convert angle to radians
+        # Calculate forces based on current vehicle state
+        gravity_force = self.vehicle.mass * self.g * np.sin(rad_angle)
+        friction_force = self.vehicle.mass * self.g * np.cos(rad_angle) * mu
+        drag_force = self.C_d * self.A * self.vehicle.velocity ** 2 / 2
+        # Calculate acceleration and new velocity without updating vehicle state
+        total_force = output_power / self.vehicle.velocity - gravity_force - friction_force - drag_force
+        acceleration = total_force / self.vehicle.mass
+        delta_v = acceleration * (self.distance_step / max(self.vehicle.velocity, self.min_velocity))
+        new_velocity = max(min(self.vehicle.velocity + delta_v, self.vehicle.velocity_max), self.min_velocity)
+        # Calculate new energy and cost time
+        power_consumed = output_power * (self.distance_step / max(self.vehicle.velocity, self.min_velocity))
+        power_regenerated = -0.740 * self.vehicle.velocity * (self.distance_step / max(self.vehicle.velocity, self.min_velocity))
+        new_energy = max(self.vehicle.energy_left - power_consumed + power_regenerated, 0)
+        delta_t = self.distance_step / max(self.vehicle.velocity, self.min_velocity)
+        return new_velocity, new_energy, delta_t
 
-
+    # You would call this method in your simulate method instead of the backward_pass and forward_pass
     def simulate(self):
-        self.initialize_state_lists()
-        print(self.route.road_info_list)
-        for distance, incline_angle, mu in self.route.road_info_list:
-            print(f"Road: {distance}, incli: {incline_angle}, mu: {mu}")
-            possible_output_values = self.calculate_possible_output_power_value(incline_angle, mu)
-            self.vehicle.output_power = self.power_strategy(possible_output_values)
-            print(self.vehicle.output_power)
-            self.update_vehicle_state(incline_angle, self.vehicle.output_power, mu)
+        self.dynamic_programming_approach()
+        self.plot_results()
 
-            if self.vehicle.velocity < self.min_velocity:
-                self.vehicle.velocity = self.min_velocity
-
-            if self.vehicle.energy_left < 2:
-                break
 
     def plot_results(self):
         plt.figure(figsize=(12, 8))

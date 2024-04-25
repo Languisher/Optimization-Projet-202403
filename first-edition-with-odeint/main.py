@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from route import Route
 from vehicle import Vehicle
 from dynamics import *
+from pmp import *
 
 # Example vehicle parameters
 vehicle_params = {
