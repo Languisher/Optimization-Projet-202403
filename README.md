@@ -26,8 +26,9 @@ Pour exécuter les simulations et tester les stratégies d'optimisation, vous au
 ```bash
 git clone https://github.com/Languisher/Optimization-Projet-202403
 cd Optimization-Projet-202403
-pip install -r requirements.txt
 ```
+
+Vous devez installer : `numpy`, `matplotlib` et `scienceplots` !
 
 ## Utilisation
 Pour exécuter la simulation principale : `test.ipynb`
