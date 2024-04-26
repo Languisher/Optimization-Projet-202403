@@ -77,42 +77,43 @@ class Simulation:
         acceleration = total_force / self.vehicle.mass
 
         # Update velocity
-        delta_v = acceleration * (self.distance_step / max(self.vehicle.velocity, 0.1))  # prevent division by zero
+        delta_v = acceleration * (self.distance_step / max(self.vehicle.velocity, 5)) * 1000  # prevent division by zero
         new_velocity = max(min(self.vehicle.velocity + delta_v, self.vehicle.velocity_max),
                            self.min_velocity)  # use a min_velocity attribute
 
         # Energy updates (assuming all powers are in Watts and all times are in seconds)
-        power_consumed = output_power * (self.distance_step / max(self.vehicle.velocity, 0.1))
+        power_consumed = output_power * (self.distance_step / max(self.vehicle.velocity, 5)) 
         # power_consumed = self.vehicle.output_power
 
         power_regenerated = -0.740 * self.vehicle.velocity * (
-                    self.distance_step / max(self.vehicle.velocity, 0.1))  # assuming negative for regeneration
+                    self.distance_step / max(self.vehicle.velocity, 5)) 
 
         new_energy = max(self.vehicle.energy_left - power_consumed + power_regenerated, 0)
 
         # Update distance and time
         new_distance = self.vehicle.covered_distance + self.distance_step
-        delta_t = self.distance_step / max(self.vehicle.velocity, 0.1) * 3600  # to convert hours to seconds
+        delta_t = self.distance_step / max(self.vehicle.velocity, 5) * 3600  # to convert hours to seconds
         new_time = self.time_list[-1] + delta_t
 
         # Update vehicle state and lists
         self.vehicle.update_velocity(new_velocity)
-        self.vehicle.energy_left = new_energy
+        self.vehicle.energy_left = new_energy 
         self.vehicle.covered_distance = new_distance
 
         self.velocity_list.append(new_velocity)
         self.energy_list.append(new_energy)
         self.distance_list.append(new_distance)
         self.time_list.append(new_time)
-        self.output_power_list.append(output_power / 1000)  # Convert watts to kilowatts for recording
+        self.output_power_list.append(np.abs(output_power / 1000))  # Convert watts to kilowatts for recording
 
     def calculate_possible_output_power_value(self, incline_angle, mu):
+        velocity = self.vehicle.velocity
         rad_angle = np.radians(incline_angle)
         u1 = 0
         u2 = 9000
-        u3 = 150000
-        u4 = self.vehicle.mass * self.g * self.vehicle.velocity*(np.sin(rad_angle) + mu * np.cos(rad_angle)) - self.C_d * self.A * self.vehicle.velocity ** 2 / 21.15
-        return [u1, u2, u3, u4]
+        u3 = 60000
+        u4 = self.vehicle.mass * self.g * velocity*(np.sin(rad_angle) + mu * np.cos(rad_angle)) - self.C_d * self.A * velocity ** 2 / 21.15
+        return [u1, u2, u3, u4 / 1000]
 
     def power_strategy(self, output_values):
         output_u = np.random.choice(output_values)
@@ -141,25 +142,25 @@ class Simulation:
 
         plt.subplot(4, 1, 1)
         plt.plot(self.distance_list, self.time_list, label='Time (s)')
-        plt.xlabel('Distance (m)')
+        plt.xlabel('Distance (km)')
         plt.ylabel('Time (s)')
         plt.legend()
 
         plt.subplot(4, 1, 2)
         plt.stem(self.distance_list, self.output_power_list, label='Power Output (kW)')
-        plt.xlabel('Distance (m)')
-        plt.ylabel('Power Output (W)')
+        plt.xlabel('Distance (km)')
+        plt.ylabel('Power Output (kW)')
         plt.legend()
 
         plt.subplot(4, 1, 3)
         plt.plot(self.distance_list, self.velocity_list, label='Velocity (km/h)')
-        plt.xlabel('Distance (m)')
-        plt.ylabel('Velocity (m/s)')
+        plt.xlabel('Distance (km)')
+        plt.ylabel('Velocity (km/h)')
         plt.legend()
 
         plt.subplot(4, 1, 4)
         plt.plot(self.distance_list, self.energy_list, label='Energy (kJ)')
-        plt.xlabel('Distance (m)')
+        plt.xlabel('Distance (km)')
         plt.ylabel('Energy (J)')
         plt.legend()
 
