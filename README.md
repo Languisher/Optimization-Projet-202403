@@ -1,5 +1,7 @@
 # Optimisation des Performances des Véhicules Électriques avec des Systèmes de Récupération d'Énergie
 
+Auteurs : Wei Teng, Nan Lin, Yuang Ding, Qingyue Deng, Ke Ma, Bingru Wang
+
 ## Présentation du Projet
 
 Ce projet présente des stratégies optimales pour améliorer la performance des véhicules électriques lors de courses de vitesse à travers des systèmes de récupération d'énergie. Utilisant le Principe Minimum de Pontryagin (PMP), le modèle optimise la distribution de la vitesse en contrôlant la puissance de sortie. Ce dépôt contient tous les codes nécessaires et les simulations utilisées dans la recherche.
@@ -40,13 +42,6 @@ Les contributions à ce projet sont les bienvenues. Veuillez forker le dépôt e
 ## Licence
 Ce projet est sous licence MIT - voir le fichier LICENSE pour les détails.
 
-## Auteurs
-Wei Teng
-Nan Lin
-Yuang Ding
-Qingyue Deng
-Ke Ma
-Bingru Wang
 
 ## Remerciements
 Un merci spécial à tous les contributeurs et chercheurs qui ont fourni des perspectives et des retours sur ce projet.
