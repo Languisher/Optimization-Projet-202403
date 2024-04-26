@@ -57,6 +57,8 @@ class Simulation:
 
         self.initialize_state_lists()
 
+        
+
     def initialize_state_lists(self):
         self.time_list = [self.time]
         self.distance_list = [self.vehicle.covered_distance]
@@ -113,22 +115,21 @@ class Simulation:
         u2 = 9000
         u3 = 60000
         u4 = self.vehicle.mass * self.g * velocity*(np.sin(rad_angle) + mu * np.cos(rad_angle)) - self.C_d * self.A * velocity ** 2 / 21.15
+        u4 = np.abs(u4)
         return [u1, u2, u3, u4 / 1000]
 
     def power_strategy(self, output_values):
         output_u = np.random.choice(output_values)
-        
         return output_u
 
 
     def simulate(self):
         self.initialize_state_lists()
-        print(self.route.road_info_list)
         for distance, incline_angle, mu in self.route.road_info_list:
-            print(f"Road: {distance}, incli: {incline_angle}, mu: {mu}")
+            # print(f"Road: {distance}, incli: {incline_angle}, mu: {mu}")
             possible_output_values = self.calculate_possible_output_power_value(incline_angle, mu)
             self.vehicle.output_power = self.power_strategy(possible_output_values)
-            print(self.vehicle.output_power)
+            # print(self.vehicle.output_power)
             self.update_vehicle_state(incline_angle, self.vehicle.output_power, mu)
 
             if self.vehicle.velocity < self.min_velocity:
@@ -161,7 +162,7 @@ class Simulation:
         plt.subplot(4, 1, 4)
         plt.plot(self.distance_list, self.energy_list, label='Energy (kJ)')
         plt.xlabel('Distance (km)')
-        plt.ylabel('Energy (J)')
+        plt.ylabel('Energy (kJ)')
         plt.legend()
 
         plt.tight_layout()
